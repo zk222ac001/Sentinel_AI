@@ -2,7 +2,8 @@
 import os
 from pathlib import Path
 import re
-import selectors
+import queue
+import threading
 import shutil
 import subprocess
 import time
@@ -41,35 +42,55 @@ def git_read(root, args, cancel, max_bytes=4096):
                                stderr=subprocess.DEVNULL, env=env)
     output = bytearray()
     deadline = time.monotonic() + COMMAND_SECONDS
-    try:
-        with selectors.DefaultSelector() as selector:
-            selector.register(process.stdout, selectors.EVENT_READ)
-            while selector.get_map():
-                if cancel.is_set():
-                    raise HistoryCancelled
-                if time.monotonic() > deadline:
-                    raise HistoryLimit('Git command timeout; history incomplete.')
-                for key, _ in selector.select(.05):
-                    chunk = os.read(key.fileobj.fileno(), 65536)
-                    if not chunk:
-                        selector.unregister(key.fileobj)
+    chunks = queue.Queue(maxsize=4)
+    stop = threading.Event()
+    def pump():
+        try:
+            while not stop.is_set():
+                chunk = process.stdout.read1(65536)
+                while not stop.is_set():
+                    try:
+                        chunks.put(chunk, timeout=.05)
                         break
-                    if len(output) + len(chunk) > max_bytes:
-                        raise HistoryLimit('Git output limit reached; history incomplete.')
-                    output.extend(chunk)
-            while process.poll() is None:
-                if cancel.is_set():
-                    raise HistoryCancelled
-                if time.monotonic() > deadline:
-                    raise HistoryLimit('Git command timeout; history incomplete.')
-                time.sleep(.01)
+                    except queue.Full:
+                        pass
+                if not chunk:
+                    return
+        except OSError:
+            # Main loop will observe process failure or the command deadline.
+            return
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+    try:
+        while True:
+            if cancel.is_set():
+                raise HistoryCancelled
+            if time.monotonic() > deadline:
+                raise HistoryLimit('Git command timeout; history incomplete.')
+            try:
+                chunk = chunks.get(timeout=.05)
+            except queue.Empty:
+                continue
+            if not chunk:
+                break
+            if len(output) + len(chunk) > max_bytes:
+                raise HistoryLimit('Git output limit reached; history incomplete.')
+            output.extend(chunk)
+        while process.poll() is None:
+            if cancel.is_set():
+                raise HistoryCancelled
+            if time.monotonic() > deadline:
+                raise HistoryLimit('Git command timeout; history incomplete.')
+            time.sleep(.01)
         if process.returncode:
             raise HistoryError('Git could not read local history. Check the repository and local objects.')
         return bytes(output)
     finally:
+        stop.set()
         if process.poll() is None:
             process.kill()
         process.wait()
+        reader.join(timeout=2)
         process.stdout.close()
 
 
