@@ -26,6 +26,24 @@ tamper-proof audit log. Changing a label does not revoke a credential or modify 
 finding → Save review → Reports. HTML reports can be printed to PDF from your browser.
 No external fonts, analytics or remote design assets are loaded by the dashboard.
 
+## Choose a folder without typing a path
+
+In **New scan**, select **Selected files** and turn off synthetic demo data,
+then click **Browse folders…**. Choose an existing folder in the desktop window.
+Its path fills the input automatically. Confirm authorization and click **Start scan**.
+Browsing also works for **Local Git HEAD history**; choose the repository root.
+Cancel leaves the current path unchanged. The chooser closes after 60 seconds;
+click Browse again if you need more time. Changing scope clears old errors and
+requires confirming authorization for the new scope.
+
+The chooser uses Python's Tk directory dialog in a separate process and opens on
+**the machine running Python**, not a remote browser machine. It requires a desktop
+session and Python Tk support. If unavailable (for example a headless server or WSL
+without a GUI), the app shows a message and manual path entry remains available.
+It does not upload files or start a scan, and existing scanner exclusions still apply.
+Native dialog behavior still needs an interactive desktop smoke test on each OS;
+CI tests mock the chooser so no unattended desktop window opens.
+
 ## Run on Windows (native, no WSL required)
 
 Install Python 3.11, 3.12 or 3.13 and Git for Windows. Open Command Prompt in a
@@ -39,7 +57,7 @@ py -3 -m venv .venv
 .venv\Scripts\python.exe -m streamlit run app.py --server.address=127.0.0.1 --server.port=8502
 ```
 
-Open http://127.0.0.1:8502. The sidebar should show **Windows · v0.3.0**, with your
+Open http://127.0.0.1:8502. The sidebar should show **Windows · v0.3.1**, with your
 Python version and app folder under Settings. This avoids confusing an older process on
 port 8501 with the new app. No activation script or PowerShell policy change
 is required. These commands use the Windows virtual environment directly.
