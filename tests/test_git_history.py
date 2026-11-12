@@ -81,7 +81,12 @@ class GitHistoryTests(unittest.TestCase):
         self.assertTrue(report['history']['shallow'])
         self.assertEqual(report['status'], 'partial')
     def test_symlink_blob_not_read(self):
-        (self.root/'secret.env').symlink_to('../outside.env')
+        try:
+            (self.root/'secret.env').symlink_to('../outside.env')
+        except OSError as error:
+            if getattr(error, "winerror", None) == 1314:
+                self.skipTest("Windows symlink creation privilege unavailable")
+            raise
         self.commit()
         report = self.scan()
         self.assertEqual(report['scanned'], 0)

@@ -1,12 +1,15 @@
 from pathlib import Path
 import json
 import os
+import platform
+from sentinel import __version__
 import streamlit as st
 from sentinel.core import Engine, report_html
 
 st.set_page_config(page_title='Sentinel AI',page_icon='🛡️',layout='wide')
 st.title('Sentinel AI')
-st.caption('PERSONAL SECURITY AUDITOR · LOCAL MVP · READ ONLY')
+st.caption(f'PERSONAL SECURITY AUDITOR · {platform.system()} · v{__version__} · READ ONLY')
+st.caption('Python ' + platform.python_version() + ' · App folder: ' + str(Path(__file__).resolve().parent))
 st.info('Candidate secrets in selected files or local Git history. Local HEAD history scanning is available. GitHub snapshot auditing is opt-in. Optional local AI guidance is available for completed scans. Billing and system permission auditing are not implemented.')
 
 @st.cache_resource
@@ -34,8 +37,10 @@ with st.sidebar:
         try:
             st.session_state['scan']=worker.start(repository if mode=='github' else str(Path(__file__).parent/'demo') if demo else folder,gitleaks if mode=='files' else False,mode=mode,allow_network=allow_network)
             st.success('Scan started')
-        except (ValueError,OSError):
-            st.error('Cannot start: verify the folder and platform, or wait for the active scan.')
+        except ValueError as error:
+            st.error(str(error))
+        except OSError:
+            st.error('Cannot access the selected folder. Check that it exists and that your account can read it.')
     if st.button('Cancel active scan'):
         worker.cancel()
 

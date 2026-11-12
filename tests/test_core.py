@@ -31,7 +31,12 @@ class AuditTests(unittest.TestCase):
     def test_symlink_outside_scope(self):
         outside=self.base/'outside.env'
         outside.write_text('password=OUTSIDE_SECRET_12345')
-        (self.root/'link.env').symlink_to(outside)
+        try:
+            (self.root/'link.env').symlink_to(outside)
+        except OSError as error:
+            if getattr(error, "winerror", None) == 1314:
+                self.skipTest("Windows symlink creation privilege unavailable")
+            raise
         report=self.scan()
         self.assertEqual(report['scanned'],0)
         self.assertEqual(report['skipped']['symlink'],1)

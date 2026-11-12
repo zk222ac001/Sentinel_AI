@@ -1,5 +1,22 @@
 # Validation results
 
+## Cross-platform filesystem and Git pipe support
+
+- Linux/Python 3.12: 70 tests discovered, 65 passed and 5 native Win32 tests
+  skipped as intended. Existing scans, Git fixtures and dashboard workflows pass.
+- Windows-specific tests cover paths with spaces/Unicode, junction exclusion,
+  handle scope enforcement, directory replacement blocking, and direct reparse
+  point rejection. These require the Windows CI runners, not mocked Linux calls.
+- CI expanded to nine jobs: Windows/macOS/Linux and Python 3.11/3.12/3.13.
+  Consult PR checks for actual platform results; local Linux success alone does
+  not prove Windows compatibility.
+- Replaced Unix-only pipe selectors with a bounded reader queue for Git commands.
+  SQLite connections now close explicitly to release Windows file locks.
+- POSIX private-mode checks remain; Windows ACL inheritance is documented rather
+  than falsely equated with chmod 0600. Custom Windows ACL enforcement, hostile
+  concurrent mutation, network shares and cloud hydration remain out of scope.
+- Real Gitleaks and Ollama inference remain unverified on all platforms.
+
 ## Optional local AI guidance
 
 - Linux/Python 3.12: 65 tests passed, including 20 new guidance/transport/UI tests.

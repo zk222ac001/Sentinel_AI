@@ -1,4 +1,5 @@
-"""Bounded, POSIX descriptor-relative scanning; no network or raw evidence storage."""
+"""Shared audit engine with Windows and POSIX filesystem adapters."""
+from contextlib import closing
 import hashlib
 import hmac
 import html
@@ -75,7 +76,7 @@ class Engine:
         self.lock = threading.Lock()
         self.cancel_event = threading.Event()
         self.worker = None
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             conn.execute('CREATE TABLE IF NOT EXISTS scans (id TEXT PRIMARY KEY, body TEXT NOT NULL)')
             # A previous process may have ended while scanning.
             for sid, body in conn.execute('SELECT id,body FROM scans').fetchall():
@@ -86,11 +87,11 @@ class Engine:
                     conn.execute('UPDATE scans SET body=? WHERE id=?',(json.dumps(report),sid))
 
     def save(self, report):
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             conn.execute('INSERT OR REPLACE INTO scans VALUES (?,?)',(report['id'],json.dumps(report)))
 
     def history(self):
-        with sqlite3.connect(self.db) as conn:
+        with closing(sqlite3.connect(self.db)) as conn, conn:
             return [json.loads(row[0]) for row in conn.execute('SELECT body FROM scans ORDER BY rowid DESC')]
 
     def start(self, root, use_gitleaks=False, mode="files", allow_network=False):
@@ -98,8 +99,8 @@ class Engine:
             raise ValueError("Unknown scan mode.")
         if mode != "files" and use_gitleaks:
             raise ValueError("Gitleaks is only supported in file mode.")
-        if os.name != 'posix' or not hasattr(os, 'O_NOFOLLOW'):
-            raise ValueError('This MVP requires macOS or Linux. Windows native scanning is not supported.')
+        if os.name not in {'posix', 'nt'}:
+            raise ValueError('Supported platforms: Windows, macOS and Linux.')
         if mode == "github":
             if not allow_network:
                 raise ValueError("GitHub scanning requires explicit network authorization.")
@@ -145,6 +146,11 @@ class Engine:
                 from .git_history import scan_history
                 scan_history(root, report, self.key, self.cancel_event, self.save)
                 return
+            if os.name == 'nt':
+                from .windows_files import scan_windows
+                scan_windows(root, report, self.key, self.cancel_event, self.save, self.data, use_gitleaks)
+                return
+            report['filesystem_backend'] = 'posix-directory-descriptors'
             from .gitleaks import Gitleaks
             scanner = Gitleaks() if use_gitleaks else None
             if scanner:

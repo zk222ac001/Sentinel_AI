@@ -70,7 +70,12 @@ class LimitsTests(unittest.TestCase):
             self.engine.start(child)
 
     def test_symlink_loop_is_skipped(self):
-        (self.root / 'loop').symlink_to('loop')
+        try:
+            (self.root / 'loop').symlink_to('loop')
+        except OSError as error:
+            if getattr(error, "winerror", None) == 1314:
+                self.skipTest("Windows symlink creation privilege unavailable")
+            raise
         report = self.scan()
         self.assertEqual(report['skipped']['symlink'], 1)
         self.assertEqual(report['status'], 'partial')
@@ -87,7 +92,10 @@ class LimitsTests(unittest.TestCase):
             os.umask(old)
         self.assertEqual(result.returncode, 0, result.stderr)
         for suffix in ('.json', '.html'):
-            self.assertEqual(stat.S_IMODE(Path(str(prefix)+suffix).stat().st_mode), 0o600)
+            path = Path(str(prefix)+suffix)
+            self.assertTrue(path.is_file())
+            if os.name != 'nt':
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
         before = Path(str(prefix)+'.json').read_bytes()
         repeat = subprocess.run(command, capture_output=True, timeout=10)
         self.assertNotEqual(repeat.returncode, 0)

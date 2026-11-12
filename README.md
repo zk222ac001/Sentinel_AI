@@ -1,13 +1,49 @@
-# Sentinel AI — local security audit MVP
+# Sentinel AI — cross-platform local security audit MVP
 
 A local security-audit prototype: read-only folder, local Git HEAD history and opt-in GitHub snapshot
 auditing, redacted candidate findings,
 SQLite scan history, cancellation, CLI, local Streamlit UI, and HTML/JSON exports.
 **Optional local AI can select reviewed guidance for findings.** This is an early prototype, not a production security product.
 
-## Run on macOS
+## Run on Windows (native, no WSL required)
 
-Install Python 3.11 or 3.12, then clone the repository and open its folder:
+Install Python 3.11, 3.12 or 3.13 and Git for Windows. Open Command Prompt in a
+local project directory outside OneDrive or another cloud-sync folder, then run:
+
+```bat
+git clone https://github.com/zk222ac001/Sentinel_AI.git
+cd Sentinel_AI
+py -3 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m streamlit run app.py --server.address=127.0.0.1 --server.port=8502
+```
+
+Open http://127.0.0.1:8502. The header should show **Windows · v0.2.0**, your
+Python version and the app folder. This avoids confusing an older process on
+port 8501 with the new app. No activation script or PowerShell policy change
+is required. These commands use the Windows virtual environment directly.
+
+For an existing checkout: stop Streamlit, use `git status -sb` to check local
+changes, then `git pull --ff-only`. Preserve local changes if Git refuses to
+update; do not use a hard reset. Run commands in the folder containing `app.py`,
+not a nested accidental clone. Environments created under Linux/macOS cannot
+be reused under Windows; create a fresh Windows `.venv` if necessary.
+
+For the demo, choose **Selected files**, enable synthetic demo data, leave
+Gitleaks unchecked, confirm authorization and click **Start scan**. Expect two
+candidate findings. If the folder is under OneDrive, use a separate local clone:
+reparse points and cloud placeholders are intentionally skipped rather than
+hydrated or followed. The scanner does not bypass Windows access permissions.
+
+CLI example from Command Prompt:
+
+```bat
+.venv\Scripts\python.exe -m sentinel demo --output demo-report
+```
+
+## Run on macOS or Linux
+
+Install Python 3.11, 3.12 or 3.13, then clone the repository and open its folder:
 
 ```bash
 git clone https://github.com/zk222ac001/Sentinel_AI.git
@@ -29,7 +65,7 @@ obviously synthetic assignments, never usable credentials.
 
 To scan your files, turn demo mode off and enter one project folder's path.
 Start small. Do not grant Full Disk Access just to use this prototype.
-Run directly on your Mac: a remote server would scan its own filesystem.
+Run directly on the computer being audited: a remote server would scan its own filesystem.
 
 For a CLI-only demo, no third-party Python packages are required:
 
@@ -46,8 +82,9 @@ python3 -m sentinel "$HOME/Projects/my-project" --output project-report
 Ctrl+C requests cancellation. Reports are written after cancellation too.
 Existing export files are never silently overwritten. Exit code 2 denotes
 failed, partial, or cancelled coverage; 0 denotes completed selected scope,
-not a security verdict. CLI reports are created owner-only (0600) from the
-first write, even with a permissive umask. Browser download permissions are
+not a security verdict. On macOS/Linux, CLI reports are created owner-only
+(0600) from the first write, even with a permissive umask. On Windows, files
+inherit their destination directory ACLs; mode 0600 does not set an NTFS ACL. Browser download permissions are
 controlled by your browser and OS. Review filenames and scope paths before sharing reports.
 
 ## Scan local Git history
@@ -205,9 +242,17 @@ resolved platform dependencies. This is not a signed or notarized Mac app.
 
 ## Scope and limitations
 
-- Targets macOS/POSIX filesystem semantics; tested on Linux, not a real Mac.
-- Native Windows unsupported. WSL scans Linux-visible folders and cannot audit
-  Windows security settings. Windows support needs a dedicated implementation.
+- Shared dashboard, CLI, file detection, Git history, GitHub snapshots and local
+  AI guidance run through platform-specific filesystem/pipe handling. CI covers
+  Windows, macOS and Linux with Python 3.11–3.13; see current checks for results.
+- File traversal uses no-follow directory descriptors on macOS/Linux and checked
+  Win32 handles on Windows. Windows skips all reparse points (junctions, links
+  and many cloud-sync files). Directories deny delete sharing during traversal;
+  each file handle is checked against the approved root before reading.
+- This does not implement Windows Defender, BitLocker, macOS TCC, firewall or
+  other OS-specific posture audits. Those require separate collectors.
+- Windows network shares and hostile concurrent filesystem mutation are not
+  part of the validated support target; start with ordinary local folders.
 - File mode reads selected UTF-8 text extensions and .env files; skips .git, Library,
   .ssh, .aws, .gnupg, dependency folders, binaries, archives and all symlinks.
 - File mode: max 1 MiB/file, 10,000 scanned files, 50,000 entries, depth 40, 120 seconds.
@@ -240,8 +285,8 @@ are disabled in the bundled configuration; launch from this project folder.
 
 Filesystem reads use directory-relative descriptors and no-follow opens on
 POSIX. Symlinks are never traversed. Files are treated as data; no contents or
-project scripts execute. HTML export escapes all serialized data. There is
-no scanned file content is supplied to a model. Optional guidance uses only
+project scripts execute. HTML export escapes all serialized data.
+No scanned file content is supplied to a model. Optional guidance uses only
 allowlisted metadata and a fixed catalog; model responses cannot execute actions.
 
 Threat model: accidental credential exposure and hostile file contents within
@@ -251,9 +296,13 @@ reachable elsewhere. Concurrent mount/rename attacks require further hardening.
 
 ## Storage and privacy
 
-Default state directory: ~/.sentinel-ai (0700). Database and fingerprint key
-are created with owner-only permissions. **SQLite is not encrypted.** The MVP
-fingerprint key is a local 0600 file, not OS Keychain; keyring integration is a
+Default state directory: `~/.sentinel-ai` (`%USERPROFILE%\.sentinel-ai` on
+Windows). On POSIX it is created with mode 0700 and files with owner-only mode.
+On Windows, the directory and files use OS directory ACLs; this application does
+not currently enforce a custom per-user ACL. Keep state/exports in your private
+user profile and check Windows Security permissions before sharing the machine
+or moving them into shared folders. **SQLite is not encrypted.** The MVP
+fingerprint key is a local file, not an OS credential-store item; keyring integration is a
 release-hardening task. Raw detected values are not intentionally persisted;
 Python memory cannot guarantee zeroization. Filenames and scope paths remain
 visible and can themselves contain personal information. The state directory
@@ -279,10 +328,12 @@ exports separately. Physical secure erasure on SSDs is not guaranteed.
 
 ## Automated checks
 
-GitHub Actions runs the core tests and synthetic Streamlit workflow on Linux
-and macOS with Python 3.11 and 3.12 for pushes and pull requests. Actions are
+GitHub Actions runs the core tests and synthetic Streamlit workflow on Windows,
+Linux and macOS with Python 3.11, 3.12 and 3.13 for pushes and pull requests. Actions are
 pinned to commits and receive read-only repository permissions. The dashboard
-test skips itself if Streamlit is not installed locally. Dependabot is configured
+test skips itself if Streamlit is not installed locally. Native Win32 handle
+tests run only on Windows. Symlink-creation tests skip only when Windows denies
+the privilege; junction tests still exercise Windows traversal boundaries. Dependabot is configured
 for weekly Python and Actions dependency update pull requests. This is not a
 complete vulnerability assessment; inspect CI results before merging changes.
 
