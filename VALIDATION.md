@@ -1,5 +1,18 @@
 # Validation results
 
+## GitHub snapshot auditing
+
+- Linux/Python 3.12: 45 tests passed, including 16 new offline GitHub API and UI
+  contract tests. No real GitHub credential or live remote audit was used.
+- Tests cover explicit network authorization, repository input validation,
+  public/private evidence, token/value redaction from persistence, tree truncation,
+  rate-limit partial results, blob integrity, symlink exclusion, response/blob
+  caps, identity mismatch, redirect refusal, cancellation, fixed-host GETs, and
+  the dashboard network gate followed by a mocked snapshot scan.
+- GitHub CI runs the same suite on Linux/macOS with Python 3.11/3.12.
+- Real private-repository access, organizational token policies and live API
+  compatibility remain to be validated by an authorized user.
+
 ## Local Git history scanning
 
 - Python 3.12 / Linux with Git 2.52.0: 29 tests passed including 11 new
