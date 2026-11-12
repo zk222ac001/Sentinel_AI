@@ -1,5 +1,17 @@
 # Validation results
 
+## Optional local AI guidance
+
+- Linux/Python 3.12: 65 tests passed, including 20 new guidance/transport/UI tests.
+- Verified payload minimization, injection-like metadata exclusion, consent gates,
+  cloud/remote-model refusal, response validation, unknown IDs/actions, arbitrary
+  prose and tool-call rejection, fallback, cancellation, response bounds,
+  loopback-only transport, no repeated inference on rerenders, and unchanged scans.
+- The dashboard test uses mocked model responses, not real inference. Ollama model
+  compatibility, latency, hardware requirements and actual selection quality have
+  not been measured. No local model was downloaded or run in this workspace.
+- CI runs Linux/macOS with Python 3.11/3.12; see PR checks for runner results.
+
 ## GitHub snapshot auditing
 
 - Linux/Python 3.12: 45 tests passed, including 16 new offline GitHub API and UI
