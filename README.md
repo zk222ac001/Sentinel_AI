@@ -3,7 +3,7 @@
 A local security-audit prototype: read-only folder, local Git HEAD history and opt-in GitHub snapshot
 auditing, redacted candidate findings,
 SQLite scan history, cancellation, CLI, local Streamlit UI, and HTML/JSON exports.
-**AI analysis is not implemented yet.** This is an early prototype, not a production security product.
+**Optional local AI can select reviewed guidance for findings.** This is an early prototype, not a production security product.
 
 ## Run on macOS
 
@@ -130,6 +130,60 @@ are skipped. Missing access, empty repositories and malformed responses fail vis
 API references: [Git trees](https://docs.github.com/en/rest/git/trees) and
 [Git blobs](https://docs.github.com/en/rest/git/blobs).
 
+## Optional local AI guidance
+
+Scanning and reviewed guidance work without a model. After a scan finishes, open
+**Explanations and optional local AI**. The default is reviewed guidance with no
+model request. The AI feature is currently dashboard-only.
+
+Install [Ollama](https://ollama.com/) yourself and download a suitable local model
+for your hardware. Sentinel does not install software or download model weights.
+List models with `ollama list`. Copy an installed local model name into the UI.
+
+**Disable Ollama cloud features in the Ollama server before using this mode.**
+For a manually launched server, stop any existing Ollama server and start it with:
+
+```bash
+OLLAMA_NO_CLOUD=1 ollama serve
+```
+
+For an existing desktop app or service, configure its environment or merge
+`"disable_ollama_cloud": true` into `~/.ollama/server.json`, then restart Ollama.
+Do not overwrite other settings. Confirm the server log reports cloud disabled.
+See the [official FAQ](https://docs.ollama.com/faq). Setting an environment variable
+only in the Sentinel process does not configure an already-running Ollama server.
+
+In Sentinel, review the payload preview, confirm cloud features are disabled,
+and explicitly allow the request. The app uses only `127.0.0.1:11434`, refuses
+redirects, disables environment proxies, rejects cloud-named models and remote
+model metadata, and requires local model metadata before requesting inference.
+A loopback endpoint cannot independently guarantee the behavior of another
+process: use your own trusted, correctly configured Ollama server.
+
+Only enum-validated rule, severity and exposure fields, temporary IDs F1–F10,
+fixed unknown validity/billing labels and a fixed guidance catalog are sent.
+Paths, repository names, original IDs, snippets, fingerprints, tokens and actual
+credential values are excluded. F1 maps to the first finding in the displayed
+scan, F2 to the second, and so on. At most ten findings are included.
+
+The model selects **guidance codes** from a reviewed catalog. It cannot contribute
+arbitrary prose, invent findings, change severity or evidence, execute commands,
+or call tools. Invalid IDs, extra fields, unsupported codes, tool calls and
+unsupported exposure suggestions are rejected. All displayed advice comes from
+the fixed catalog and is conditional; this is constrained AI assistance, not an
+autonomous investigation or full free-form analysis.
+
+Requests run in a per-browser-session background job with cancellation, a
+60-second budget, 10-second socket timeout, 256 KiB response cap and 1,024-token
+generation setting. Slow cold starts may fall back to reviewed guidance; preload
+the model separately if needed. Cancellation can wait for the socket timeout.
+Ollama may continue work briefly after the client stops waiting.
+
+Guidance is labeled by source and stays in the browser session. It can be
+exported separately as JSON. Original scan records and exports remain unchanged.
+A refresh/session loss may discard the guidance. No cloud AI provider is
+integrated; control the local server's own logging and retention separately.
+
 ## Optional Gitleaks
 
 Install Gitleaks 8.x manually from https://github.com/gitleaks/gitleaks and check
@@ -169,7 +223,7 @@ resolved platform dependencies. This is not a signed or notarized Mac app.
 - Repeated credentials can yield multiple findings; HMAC fingerprints support
   future grouping. Overlapping built-in and Gitleaks detections are not merged.
 - No system permissions inventory, PDF, AI-provider calls,
-  AI models, scheduling, automated remediation, or relationship graph yet.
+  cloud AI providers, scheduling, automated remediation, or relationship graph yet.
 - Dashboard cancellation affects the one shared local worker. Intended for
   one trusted local user, not multi-user deployment.
 
@@ -187,7 +241,8 @@ are disabled in the bundled configuration; launch from this project folder.
 Filesystem reads use directory-relative descriptors and no-follow opens on
 POSIX. Symlinks are never traversed. Files are treated as data; no contents or
 project scripts execute. HTML export escapes all serialized data. There is
-no LLM or prompt execution pathway.
+no scanned file content is supplied to a model. Optional guidance uses only
+allowlisted metadata and a fixed catalog; model responses cannot execute actions.
 
 Threat model: accidental credential exposure and hostile file contents within
 an approved tree. Not a boundary against a malicious local administrator or
@@ -218,7 +273,7 @@ exports separately. Physical secure erasure on SSDs is not guaranteed.
    pipes and live filesystem threat hardening.
 2. Broader Git ref selection, GitHub history coverage, system checks and guided
    permissions review.
-3. Opt-in AI explanations using redacted structured findings, PDF reports,
+3. Evaluate local model compatibility and guidance quality; PDF reports and
    evidence-based relationship graph.
 4. Packaging, signed releases, vulnerability review, broader platforms.
 

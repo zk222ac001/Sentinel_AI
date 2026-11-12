@@ -7,7 +7,7 @@ from sentinel.core import Engine, report_html
 st.set_page_config(page_title='Sentinel AI',page_icon='🛡️',layout='wide')
 st.title('Sentinel AI')
 st.caption('PERSONAL SECURITY AUDITOR · LOCAL MVP · READ ONLY')
-st.info('Candidate secrets in selected files or local Git history. Local HEAD history scanning is available. GitHub snapshot auditing is opt-in. AI, billing and system permission auditing are not implemented.')
+st.info('Candidate secrets in selected files or local Git history. Local HEAD history scanning is available. GitHub snapshot auditing is opt-in. Optional local AI guidance is available for completed scans. Billing and system permission auditing are not implemented.')
 
 @st.cache_resource
 def engine():
@@ -73,5 +73,8 @@ def results():
     if report['status']!='running':
         st.download_button('Download JSON',json.dumps(report,indent=2),'sentinel-report.json','application/json')
         st.download_button('Download HTML',report_html(report),'sentinel-report.html','text/html')
+    if report['status']!='running':
+        from sentinel.ai_ui import render_guidance
+        render_guidance(report)
     st.caption('Reports contain relative filenames and the scope path. Review them before sharing. Values are fully redacted.')
 results()
