@@ -10,11 +10,12 @@ def main():
     parser.add_argument('folder',help='Authorized scan root')
     parser.add_argument('--data',default='~/.sentinel-ai')
     parser.add_argument('--gitleaks',action='store_true')
+    parser.add_argument('--mode', choices=['files', 'git_history'], default='files')
     parser.add_argument('--output',default='sentinel-report',help='Export filename prefix')
     args=parser.parse_args()
     engine=Engine(args.data)
     try:
-        sid=engine.start(args.folder,args.gitleaks)
+        sid=engine.start(args.folder,args.gitleaks,mode=args.mode)
     except (ValueError,OSError):
         parser.error('Invalid or inaccessible scope, or unsupported platform.')
     try:

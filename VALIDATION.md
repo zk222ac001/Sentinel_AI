@@ -1,6 +1,18 @@
 # Validation results
 
-## Scan coverage hardening
+## Local Git history scanning
+
+- Python 3.12 / Linux with Git 2.52.0: 29 tests passed including 11 new
+  real-Git fixture tests; no external service was contacted.
+- Verified deleted-secret recovery with commit evidence, persistence redaction,
+  duplicate blob suppression, HEAD-only scope, shallow clone reporting,
+  commit/blob/output limits, cancellation, empty/subfolder failures,
+  symlink exclusion, and non-execution of configured textconv/smudge/fsmonitor.
+- File-mode Streamlit demo continues to pass. History mode uses the same worker
+  and exports; interactive visual testing on a personal Mac remains needed.
+- CI results for this PR determine Linux/macOS Python 3.11/3.12 validation.
+
+## Previous scan coverage hardening
 
 - Python 3.12 / Linux: 18 tests passed, including a real Streamlit 1.50 AppTest.
 - Regression tests exercise nested traversal limits, per-file/global finding
