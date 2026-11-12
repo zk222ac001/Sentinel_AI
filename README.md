@@ -1,9 +1,30 @@
-# Sentinel AI — cross-platform local security audit MVP
+# Sentinel AI — personal security workspace
 
 A local security-audit prototype: read-only folder, local Git HEAD history and opt-in GitHub snapshot
 auditing, redacted candidate findings,
 SQLite scan history, cancellation, CLI, local Streamlit UI, and HTML/JSON exports.
 **Optional local AI can select reviewed guidance for findings.** This is an early prototype, not a production security product.
+
+## Workspace v0.3
+
+- **Overview:** latest audit metrics and recent scan activity; no invented security score.
+- **New scan:** focused scope selection with explicit authorization and network opt-in.
+- **Findings:** search by location/detector, severity and review filters, redacted evidence,
+  remediation guidance, and optional local AI guidance.
+- **Reports:** standalone printable HTML and structured JSON. Sharing copies default to
+  omitting paths, repository URLs, commit IDs, fingerprints and detailed coverage.
+  Counts, categories and timestamps remain: review every export before sharing.
+- **Settings:** runtime diagnostics, local data location and an honest capability matrix.
+
+Review labels (Open, In review, Accepted risk, False positive, Resolved (manual)) are
+stored in separate SQLite tables with a local change history. They never overwrite
+scanner evidence or verify remediation. Existing scan databases migrate additively;
+no existing scans are deleted. Review history is local application history, not a
+tamper-proof audit log. Changing a label does not revoke a credential or modify files.
+
+**Try it:** New scan → synthetic demo → authorization → Start scan → inspect a
+finding → Save review → Reports. HTML reports can be printed to PDF from your browser.
+No external fonts, analytics or remote design assets are loaded by the dashboard.
 
 ## Run on Windows (native, no WSL required)
 
@@ -18,8 +39,8 @@ py -3 -m venv .venv
 .venv\Scripts\python.exe -m streamlit run app.py --server.address=127.0.0.1 --server.port=8502
 ```
 
-Open http://127.0.0.1:8502. The header should show **Windows · v0.2.0**, your
-Python version and the app folder. This avoids confusing an older process on
+Open http://127.0.0.1:8502. The sidebar should show **Windows · v0.3.0**, with your
+Python version and app folder under Settings. This avoids confusing an older process on
 port 8501 with the new app. No activation script or PowerShell policy change
 is required. These commands use the Windows virtual environment directly.
 

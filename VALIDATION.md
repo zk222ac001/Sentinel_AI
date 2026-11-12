@@ -74,3 +74,17 @@
 requirements-resolved.txt records the original Linux environment. It is not
 an independently verified, portable dependency lockfile. CI resolves from
 requirements.txt on each platform.
+
+
+## v0.3 workspace validation
+
+Local Python 3.12: 74 tests executed, 69 passed and 5 Windows-only tests skipped.
+Covers the demo scan, navigation, filtering, persisted review labels, report controls,
+GitHub consent, AI opt-in, HTML escaping, sharing export metadata omission, invalid
+review targets, immutable scan evidence and existing scanner safeguards.
+
+Browser screenshot QA was attempted but Chromium launch was blocked by the execution
+environment (socket operation denied). Desktop/mobile visual inspection is still needed.
+Windows/macOS validation is provided by the PR CI matrix; see the linked workflow checks.
+This upgrade does not add billing validation, system posture checks, verified credential
+revocation, multi-user authentication or production security certification.

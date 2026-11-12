@@ -129,14 +129,14 @@ class GitHubTests(unittest.TestCase):
                 cache_resource.clear()
                 try:
                     app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
-                    app.selectbox[0].select('github').run()
-                    app.checkbox[0].uncheck().run()
-                    app.text_input[1].input('owner/repo').run()
-                    app.checkbox[3].check().run()
-                    self.assertTrue(app.button[0].disabled)
-                    app.checkbox[2].check().run()
-                    self.assertFalse(app.button[0].disabled)
-                    app.button[0].click().run()
+                    app.radio(key='navigation').set_value('New scan').run()
+                    app.selectbox(key='mode').select('github').run()
+                    app.text_input(key='repository').input('owner/repo').run()
+                    app.checkbox(key='authorize').check().run()
+                    self.assertTrue(app.button(key='start_scan').disabled)
+                    app.checkbox(key='network_authorize').check().run()
+                    self.assertFalse(app.button(key='start_scan').disabled)
+                    app.button(key='start_scan').click().run()
                     deadline=time.monotonic()+5
                     while time.monotonic()<deadline:
                         app.run()

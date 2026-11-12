@@ -51,9 +51,7 @@ def detect(text, key, path):
     return findings
 
 
-def report_html(report):
-    # Entire report is escaped, including filenames and malicious content.
-    return '<!doctype html><html lang="en"><meta charset="utf-8"><title>Sentinel audit</title><style>body{background:#111827;color:#e5e7eb;font:16px system-ui;padding:40px}pre{white-space:pre-wrap;overflow-wrap:anywhere}h1{color:#fb923c}</style><h1>Sentinel audit</h1><p>Candidate findings; no credential validity or billing verification.</p><pre>' + html.escape(json.dumps(report,indent=2)) + '</pre></html>'
+from .reporting import report_html
 
 
 class Engine:

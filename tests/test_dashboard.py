@@ -19,8 +19,9 @@ class DashboardTests(unittest.TestCase):
                 try:
                     app = AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
                     self.assertFalse(app.exception)
-                    app.checkbox[2].check().run()
-                    app.button[0].click().run()
+                    app.radio(key='navigation').set_value('New scan').run()
+                    app.checkbox(key='authorize').check().run()
+                    app.button(key='start_scan').click().run()
                     deadline = time.monotonic()+10
                     while time.monotonic()<deadline:
                         app.run()
@@ -30,5 +31,20 @@ class DashboardTests(unittest.TestCase):
                     self.assertFalse(app.exception)
                     self.assertEqual(app.metric[1].value, '2')
                     self.assertEqual(app.metric[2].value, 'COMPLETED')
+                    app.text_input(key='finding_search').input('no-match-expected').run()
+                    self.assertIn('No findings match', app.info[0].value)
+                    app.text_input(key='finding_search').input('').run()
+                    decision=next(x for x in app.selectbox if x.label=='Manual review decision')
+                    decision.select('In review').run()
+                    app.button(key='save_review').click().run()
+                    app.selectbox(key='review_filter').select('In review').run()
+                    self.assertIn('1 of 2', next(x.value for x in app.caption if 'of 2 candidates' in x.value))
+                    app.radio(key='navigation').set_value('Reports').run()
+                    self.assertFalse(app.exception)
+                    self.assertTrue(app.toggle(key='minimize_export').value)
+                    self.assertEqual(len(app.get('download_button')),2)
+                    app.radio(key='navigation').set_value('Settings').run()
+                    self.assertFalse(app.exception)
+
                 finally:
                     cache_resource.clear()
