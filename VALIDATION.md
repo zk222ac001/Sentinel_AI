@@ -88,3 +88,14 @@ environment (socket operation denied). Desktop/mobile visual inspection is still
 Windows/macOS validation is provided by the PR CI matrix; see the linked workflow checks.
 This upgrade does not add billing validation, system posture checks, verified credential
 revocation, multi-user authentication or production security certification.
+
+
+## v0.3.1 folder selection
+
+80 tests executed locally on Python 3.12: 75 passed, 5 Windows-only skipped.
+New tests cover isolated chooser invocation, spaces/Unicode in paths, cancellation,
+timeout/unavailable desktop errors, invalid responses, UI path population, unchanged
+path on cancel/failure, disabled demo browsing, Git-history/GitHub availability,
+no automatic scan, renewed scope authorization and stale-error cleanup.
+Native desktop dialogs are mocked in automated tests. Actual Windows/macOS/Linux
+interactive chooser behavior is not yet verified; manual path entry remains available.

@@ -8,6 +8,7 @@ import streamlit as st
 from sentinel import __version__
 from sentinel.core import Engine
 from sentinel.reviews import ReviewStore, STATUSES
+from sentinel import folder_picker
 from sentinel.reporting import export_report, report_html
 
 ROOT = Path(__file__).resolve().parent
@@ -87,15 +88,39 @@ def coverage(report):
         if report.get('skipped_details_omitted'): st.caption(f"Additional skipped entries omitted: {report['skipped_details_omitted']}")
 
 
+def scope_changed():
+    st.session_state.pop('launch_error', None)
+    st.session_state.pop('folder_notice', None)
+    st.session_state['authorize'] = False
+
+
+def browse_folder():
+    try:
+        with st.spinner('Choose a folder in the desktop window (60-second timeout)…'):
+            selected = folder_picker.choose_folder(st.session_state.get('folder', ''))
+        if selected:
+            st.session_state['folder'] = selected
+            scope_changed()
+            st.session_state['folder_notice'] = 'Folder selected. Confirm authorization below to start the scan.'
+        else:
+            st.session_state['folder_notice'] = 'Folder selection cancelled. Your existing path is unchanged.'
+    except folder_picker.FolderPickerError as error:
+        st.session_state['folder_notice'] = str(error)
+
+
 def new_scan():
     st.write('Choose a scope you own or are authorized to audit. Start small, review the results, then expand.')
     left,right = st.columns([3,2], gap='large')
     with left, st.container(border=True):
         st.subheader('01 / Choose your scope')
-        mode = st.selectbox('Scan mode',['files','git_history','github'], key='mode',format_func=lambda v: {'files':'Selected files','git_history':'Local Git HEAD history','github':'GitHub repository snapshot'}[v])
-        demo = st.checkbox('Use synthetic demo data',value=True,key='demo',disabled=mode!='files') if mode=='files' else False
-        folder = st.text_input('Folder on this computer',value=str(ROOT/'demo'),key='folder',disabled=demo) if mode!='github' else ''
-        repository = st.text_input('GitHub owner/repository',key='repository') if mode=='github' else ''
+        mode = st.selectbox('Scan mode',['files','git_history','github'], key='mode',on_change=scope_changed,format_func=lambda v: {'files':'Selected files','git_history':'Local Git HEAD history','github':'GitHub repository snapshot'}[v])
+        demo = st.checkbox('Use synthetic demo data',value=True,key='demo',on_change=scope_changed,disabled=mode!='files') if mode=='files' else False
+        folder = st.text_input('Folder on this computer',value=str(ROOT/'demo'),key='folder',disabled=demo,on_change=scope_changed) if mode!='github' else ''
+        if mode!='github':
+            st.button('Browse folders…',key='browse_folder',on_click=browse_folder,disabled=demo)
+            st.caption('Opens a folder chooser on the computer running Sentinel. Selecting a folder does not start a scan. You can also paste a path above.')
+            if st.session_state.get('folder_notice'): st.info(st.session_state['folder_notice'])
+        repository = st.text_input('GitHub owner/repository',key='repository',on_change=scope_changed) if mode=='github' else ''
         gitleaks = st.checkbox('Also use installed Gitleaks 8.x',key='gitleaks') if mode=='files' else False
         network = st.checkbox('Allow read-only GitHub API requests for this repository', key='network_authorize') if mode=='github' else False
         st.subheader('02 / Confirm & launch')
