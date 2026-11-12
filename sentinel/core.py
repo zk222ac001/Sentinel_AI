@@ -93,7 +93,11 @@ class Engine:
         with sqlite3.connect(self.db) as conn:
             return [json.loads(row[0]) for row in conn.execute('SELECT body FROM scans ORDER BY rowid DESC')]
 
-    def start(self, root, use_gitleaks=False):
+    def start(self, root, use_gitleaks=False, mode="files"):
+        if mode not in {"files", "git_history"}:
+            raise ValueError("Unknown scan mode.")
+        if mode == "git_history" and use_gitleaks:
+            raise ValueError("Gitleaks is only supported in file mode.")
         if os.name != 'posix' or not hasattr(os, 'O_NOFOLLOW'):
             raise ValueError('This MVP requires macOS or Linux. Windows native scanning is not supported.')
         root = Path(root).expanduser().resolve(strict=True)
@@ -105,7 +109,7 @@ class Engine:
             if self.worker and self.worker.is_alive():
                 raise ValueError('A scan is already running.')
             self.cancel_event.clear()
-            report = dict(id=str(uuid.uuid4()), scope=str(root), status='running',
+            report = dict(id=str(uuid.uuid4()), scope=str(root), status='running', mode=mode,
                 started=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()), scanned=0,
                 considered=0, skipped={}, skipped_details=[], skipped_details_omitted=0, findings=[], engine='builtin-rules-v1',
                 limitations=['Selected text files only; no Git history, permissions audit, billing or AI analysis.',
@@ -127,6 +131,10 @@ class Engine:
                 report['skipped_details_omitted'] += 1
             report['skipped'][reason] = report['skipped'].get(reason,0)+1
         try:
+            if report.get('mode') == 'git_history':
+                from .git_history import scan_history
+                scan_history(root, report, self.key, self.cancel_event, self.save)
+                return
             from .gitleaks import Gitleaks
             scanner = Gitleaks() if use_gitleaks else None
             if scanner:
