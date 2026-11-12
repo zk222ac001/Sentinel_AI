@@ -24,6 +24,12 @@ EXCLUDED = {'.git','.venv','venv','node_modules','__pycache__','.ssh','.aws','.g
 MAX_BYTES = 1024 * 1024
 MAX_FILES = 10000
 MAX_ENTRIES = 50000
+MAX_FINDINGS = 5000
+MAX_SKIP_DETAILS = 500
+
+
+class ScanLimitReached(Exception):
+    """Control flow distinct from filesystem OSError/TimeoutError."""
 
 
 def detect(text, key, path):
@@ -91,6 +97,8 @@ class Engine:
         if os.name != 'posix' or not hasattr(os, 'O_NOFOLLOW'):
             raise ValueError('This MVP requires macOS or Linux. Windows native scanning is not supported.')
         root = Path(root).expanduser().resolve(strict=True)
+        if root == self.data or self.data in root.parents:
+            raise ValueError('Application state cannot be scanned.')
         if not root.is_dir():
             raise ValueError('Choose a directory.')
         with self.lock:
@@ -99,7 +107,7 @@ class Engine:
             self.cancel_event.clear()
             report = dict(id=str(uuid.uuid4()), scope=str(root), status='running',
                 started=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()), scanned=0,
-                considered=0, skipped={}, findings=[], engine='builtin-rules-v1',
+                considered=0, skipped={}, skipped_details=[], skipped_details_omitted=0, findings=[], engine='builtin-rules-v1',
                 limitations=['Selected text files only; no Git history, permissions audit, billing or AI analysis.',
                               'Built-in rules are limited. Findings are candidates; zero findings does not establish security.'])
             self.save(report)
@@ -112,7 +120,11 @@ class Engine:
 
     def _run(self, root, report, use_gitleaks):
         started = time.monotonic()
-        def skip(reason):
+        def skip(reason, path):
+            if len(report['skipped_details']) < MAX_SKIP_DETAILS:
+                report['skipped_details'].append(dict(path=path, reason=reason))
+            else:
+                report['skipped_details_omitted'] += 1
             report['skipped'][reason] = report['skipped'].get(reason,0)+1
         try:
             from .gitleaks import Gitleaks
@@ -122,7 +134,7 @@ class Engine:
             rootfd = os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
             def walk(fd, relative='', depth=0):
                 if depth > 40:
-                    skip('depth_limit')
+                    skip('depth_limit', relative)
                     return
                 # All opens are relative to an already opened directory descriptor.
                 with os.scandir(fd) as entries:
@@ -130,17 +142,17 @@ class Engine:
                         if self.cancel_event.is_set():
                             return
                         if report['considered'] >= MAX_ENTRIES or report['scanned'] >= MAX_FILES or time.monotonic()-started > 120:
-                            raise TimeoutError
+                            raise ScanLimitReached
                         report['considered'] += 1
                         name = entry.name
                         rel = str(Path(relative)/name)
-                        if name in EXCLUDED or (root/rel).resolve() == self.data:
-                            skip('excluded')
+                        if name in EXCLUDED or root/rel == self.data:
+                            skip('excluded', rel)
                             continue
                         try:
                             info = entry.stat(follow_symlinks=False)
                             if stat.S_ISLNK(info.st_mode):
-                                skip('symlink')
+                                skip('symlink', rel)
                                 continue
                             if stat.S_ISDIR(info.st_mode):
                                 child = os.open(name,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=fd)
@@ -150,45 +162,46 @@ class Engine:
                                     os.close(child)
                                 continue
                             if not stat.S_ISREG(info.st_mode):
-                                skip('special_file')
+                                skip('special_file', rel)
                                 continue
                             if Path(name).suffix.lower() not in EXTENSIONS and not name.startswith('.env'):
-                                skip('unsupported_type')
+                                skip('unsupported_type', rel)
                                 continue
                             filefd = os.open(name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=fd)
                             with os.fdopen(filefd,'rb') as source:
                                 before = os.fstat(source.fileno())
                                 if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_BYTES:
-                                    skip('size_or_type')
+                                    skip('size_or_type', rel)
                                     continue
                                 raw = source.read(MAX_BYTES+1)
                                 after = os.fstat(source.fileno())
                             if len(raw)>MAX_BYTES or (before.st_mtime_ns,before.st_size)!=(after.st_mtime_ns,after.st_size):
-                                skip('changed_or_large')
+                                skip('changed_or_large', rel)
                                 continue
                             if b'\0' in raw:
-                                skip('binary')
+                                skip('binary', rel)
                                 continue
                             text = raw.decode('utf-8')
                             found = detect(text,self.key,rel)
                             if scanner:
                                 found += scanner.scan(text,rel)
-                            report['findings'].extend(found)
+                            remaining = MAX_FINDINGS - len(report['findings'])
+                            report['findings'].extend(found[:remaining])
                             report['scanned'] += 1
                             if report['scanned'] % 20 == 0:
                                 self.save(report)
-                            if len(report['findings']) >= 5000:
-                                raise TimeoutError
+                            if len(report['findings']) >= MAX_FINDINGS or len(found) >= 1000:
+                                raise ScanLimitReached
                         except (OSError, UnicodeError):
-                            skip('unreadable_or_encoding')
+                            skip('unreadable_or_encoding', rel)
             try:
                 walk(rootfd)
             finally:
                 os.close(rootfd)
             report['status'] = 'cancelled' if self.cancel_event.is_set() else ('partial' if report['skipped'] else 'completed')
-        except TimeoutError:
+        except ScanLimitReached:
             report['status'] = 'partial'
-            report['limitations'].append('Resource/time limit reached.')
+            report['limitations'].append('Resource, time or per-file finding limit reached; findings may be incomplete.')
         except Exception:
             report['status'] = 'failed'
             report['limitations'].append('Collector failed; check dependency availability. Raw exceptions are suppressed to avoid sensitive output.')

@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 from pathlib import Path
 from .core import Engine, report_html
 
@@ -25,9 +26,9 @@ def main():
     for suffix,content in [('.json',json.dumps(report,indent=2)),('.html',report_html(report))]:
         path=Path(args.output+suffix)
         # Do not silently overwrite an existing file.
-        with path.open('x',encoding='utf-8') as f:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
             f.write(content)
-        path.chmod(0o600)
     print(f"Status: {report['status']}; files: {report['scanned']}; candidates: {len(report['findings'])}")
     return 2 if report['status'] in {'failed','partial','cancelled'} else 0
 
