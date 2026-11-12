@@ -1,6 +1,6 @@
 # Sentinel AI — local security audit MVP
 
-A local security-audit prototype: read-only folder and local Git HEAD history
+A local security-audit prototype: read-only folder, local Git HEAD history and opt-in GitHub snapshot
 auditing, redacted candidate findings,
 SQLite scan history, cancellation, CLI, local Streamlit UI, and HTML/JSON exports.
 **AI analysis is not implemented yet.** This is an early prototype, not a production security product.
@@ -81,6 +81,55 @@ Git metadata may reference local object stores outside the working tree (for
 example linked worktrees or alternates); audit only repositories you authorize.
 Gitleaks integration currently applies only to file mode.
 
+## Audit one GitHub repository (explicit network opt-in)
+
+In the dashboard choose **GitHub repository snapshot**, disable demo mode,
+enter `owner/repository`, and confirm both your authority to audit that repository
+and permission for API reads. Local modes still make no network requests.
+
+```bash
+python3 -m sentinel owner/repository --mode github --allow-network --output github-report
+```
+
+GitHub mode reads the selected repository's default branch at one pinned commit.
+It does not scan earlier commits, other refs, forks, Actions logs or issues. Use
+local Git history mode on an authorized clone for history inspection. GitHub
+Enterprise hosts and bulk account discovery are not implemented.
+
+Public repositories can be read without a token, subject to GitHub rate limits.
+For private repositories, supply an intentionally created fine-grained token
+restricted to selected repositories with Contents read access (and the associated
+Metadata read permission). Set `SENTINEL_GITHUB_TOKEN` in the launching process's
+environment using your secret manager or a non-echoing shell prompt. Do not put a
+token in a command argument, repository file, screenshot or chat. The app reads
+it only for GitHub mode, does not persist it, and never uses discovered credentials
+as connector tokens. Environment-based credentials are an interim mechanism;
+OS keyring integration is still planned.
+
+Only HTTPS GET requests to `api.github.com` are made. Redirects are refused and
+environment proxies are disabled to avoid forwarding the connector credential.
+No files are uploaded, credentials validated, accounts modified or scripts run.
+Blob values are processed in memory and findings are redacted before storage.
+The local fingerprint key stays local. Repository names, paths, commit IDs and
+observed visibility appear in reports, including for private repositories.
+
+Limits: 100 distinct blobs, 1 MiB/blob, 4 MiB/API response, 104 requests, 10-second
+socket timeout, 120-second scan budget, and existing finding limits. Cancellation
+can wait for an in-flight socket read. Rate limits stop the scan without retries;
+results already scanned are retained as partial. A truncated recursive tree is
+explicitly partial, not an exhaustive inventory. Recursive trees are not paginated;
+this version does not fetch omitted subtrees. No claim is made that any detected
+credential is active, billable, or publicly exposed for a particular duration.
+
+Public/private exposure labels reflect repository metadata observed at the start
+of retrieval. Findings link to content at the captured commit, not the moving
+branch tip. Each distinct blob gets one representative path. Supported regular
+UTF-8 blobs are inspected regardless of extension; binaries, symlinks and submodules
+are skipped. Missing access, empty repositories and malformed responses fail visibly.
+
+API references: [Git trees](https://docs.github.com/en/rest/git/trees) and
+[Git blobs](https://docs.github.com/en/rest/git/blobs).
+
 ## Optional Gitleaks
 
 Install Gitleaks 8.x manually from https://github.com/gitleaks/gitleaks and check
@@ -119,7 +168,7 @@ resolved platform dependencies. This is not a signed or notarized Mac app.
   public exposure, account ownership or paid subscription status.
 - Repeated credentials can yield multiple findings; HMAC fingerprints support
   future grouping. Overlapping built-in and Gitleaks detections are not merged.
-- No remote GitHub audit, system permissions inventory, PDF, cloud calls,
+- No system permissions inventory, PDF, AI-provider calls,
   AI models, scheduling, automated remediation, or relationship graph yet.
 - Dashboard cancellation affects the one shared local worker. Intended for
   one trusted local user, not multi-user deployment.
@@ -129,7 +178,9 @@ resolved platform dependencies. This is not a signed or notarized Mac app.
 Browser → loopback Streamlit UI → shared background worker → approved folder.
 History mode reads local objects through bounded Git subprocess pipes.
 The worker emits redacted dictionaries → SQLite → escaped HTML/JSON exports.
-The CLI calls the same engine. No scan data is sent to the network.
+The CLI calls the same engine. Local modes do not send scan data to the network.
+GitHub mode sends authorized GET requests (repository/object identifiers plus
+an optional connector token) and processes downloaded content locally.
 Dependency installation itself uses the network. Streamlit usage statistics
 are disabled in the bundled configuration; launch from this project folder.
 
@@ -165,7 +216,7 @@ exports separately. Physical secure erasure on SSDs is not guaranteed.
 1. Real macOS and Gitleaks compatibility tests; process-level job locking,
    authenticated local sessions, encrypted storage/keyring, bounded subprocess
    pipes and live filesystem threat hardening.
-2. Broader Git ref selection, authorized GitHub evidence, system checks and guided
+2. Broader Git ref selection, GitHub history coverage, system checks and guided
    permissions review.
 3. Opt-in AI explanations using redacted structured findings, PDF reports,
    evidence-based relationship graph.

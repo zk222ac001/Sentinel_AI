@@ -8,14 +8,15 @@ from .core import Engine, report_html
 def main():
     parser=argparse.ArgumentParser(description='Local read-only security audit')
     parser.add_argument('folder',help='Authorized scan root')
+    parser.add_argument('--allow-network', action='store_true', help='Authorize GitHub API reads for the selected repository')
     parser.add_argument('--data',default='~/.sentinel-ai')
     parser.add_argument('--gitleaks',action='store_true')
-    parser.add_argument('--mode', choices=['files', 'git_history'], default='files')
+    parser.add_argument('--mode', choices=['files', 'git_history', 'github'], default='files')
     parser.add_argument('--output',default='sentinel-report',help='Export filename prefix')
     args=parser.parse_args()
     engine=Engine(args.data)
     try:
-        sid=engine.start(args.folder,args.gitleaks,mode=args.mode)
+        sid=engine.start(args.folder,args.gitleaks,mode=args.mode,allow_network=args.allow_network)
     except (ValueError,OSError):
         parser.error('Invalid or inaccessible scope, or unsupported platform.')
     try:

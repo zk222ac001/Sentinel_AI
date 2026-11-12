@@ -93,18 +93,24 @@ class Engine:
         with sqlite3.connect(self.db) as conn:
             return [json.loads(row[0]) for row in conn.execute('SELECT body FROM scans ORDER BY rowid DESC')]
 
-    def start(self, root, use_gitleaks=False, mode="files"):
-        if mode not in {"files", "git_history"}:
+    def start(self, root, use_gitleaks=False, mode="files", allow_network=False):
+        if mode not in {"files", "git_history", "github"}:
             raise ValueError("Unknown scan mode.")
-        if mode == "git_history" and use_gitleaks:
+        if mode != "files" and use_gitleaks:
             raise ValueError("Gitleaks is only supported in file mode.")
         if os.name != 'posix' or not hasattr(os, 'O_NOFOLLOW'):
             raise ValueError('This MVP requires macOS or Linux. Windows native scanning is not supported.')
-        root = Path(root).expanduser().resolve(strict=True)
-        if root == self.data or self.data in root.parents:
-            raise ValueError('Application state cannot be scanned.')
-        if not root.is_dir():
-            raise ValueError('Choose a directory.')
+        if mode == "github":
+            if not allow_network:
+                raise ValueError("GitHub scanning requires explicit network authorization.")
+            from .github_scan import validate_repository
+            root = validate_repository(root)
+        else:
+            root = Path(root).expanduser().resolve(strict=True)
+            if root == self.data or self.data in root.parents:
+                raise ValueError('Application state cannot be scanned.')
+            if not root.is_dir():
+                raise ValueError('Choose a directory.')
         with self.lock:
             if self.worker and self.worker.is_alive():
                 raise ValueError('A scan is already running.')
@@ -131,6 +137,10 @@ class Engine:
                 report['skipped_details_omitted'] += 1
             report['skipped'][reason] = report['skipped'].get(reason,0)+1
         try:
+            if report.get('mode') == 'github':
+                from .github_scan import scan_github
+                scan_github(root, report, self.key, self.cancel_event, self.save)
+                return
             if report.get('mode') == 'git_history':
                 from .git_history import scan_history
                 scan_history(root, report, self.key, self.cancel_event, self.save)

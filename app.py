@@ -7,7 +7,7 @@ from sentinel.core import Engine, report_html
 st.set_page_config(page_title='Sentinel AI',page_icon='🛡️',layout='wide')
 st.title('Sentinel AI')
 st.caption('PERSONAL SECURITY AUDITOR · LOCAL MVP · READ ONLY')
-st.info('Candidate secrets in selected files or local Git history. Local HEAD history scanning is available. AI, remote GitHub, billing and system permission auditing are not implemented.')
+st.info('Candidate secrets in selected files or local Git history. Local HEAD history scanning is available. GitHub snapshot auditing is opt-in. AI, billing and system permission auditing are not implemented.')
 
 @st.cache_resource
 def engine():
@@ -16,19 +16,23 @@ def engine():
 worker=engine()
 with st.sidebar:
     st.header('Scan scope')
-    mode=st.selectbox('Scan mode', ['files', 'git_history'], format_func=lambda value: 'Selected files' if value=='files' else 'Local Git HEAD history')
+    mode=st.selectbox('Scan mode', ['files', 'git_history', 'github'], format_func=lambda value: {'files':'Selected files','git_history':'Local Git HEAD history','github':'GitHub repository snapshot'}[value])
     demo=st.checkbox('Use synthetic demo data',value=True)
     folder=st.text_input('Folder on this computer',value=str(Path(__file__).parent/'demo') if demo else str(Path.home()/'Projects'),disabled=demo)
-    gitleaks=st.checkbox('Also use installed Gitleaks 8.x',disabled=mode=='git_history')
+    gitleaks=st.checkbox('Also use installed Gitleaks 8.x',disabled=mode!='files')
     if mode=='git_history':
         st.caption('Select the repository root. Reads committed regular-file blobs, including deleted files and historical versions. Other refs are not scanned. No remote fetch. Turn demo mode off for history scans.')
-    st.caption('No network requests. Maximum 1 MiB per file/blob and 120 seconds per scan. Symlinks and binary content are skipped.')
+    st.caption(('Network requests only in explicitly authorized GitHub mode. ' if mode=='github' else 'No network requests. ') + 'Maximum 1 MiB per file/blob and 120 seconds per scan. Symlinks and binary content are skipped.')
     if mode=='files':
         st.caption('File mode excludes Git metadata and protected credential-store directories.')
+    repository=st.text_input('GitHub owner/repository', value='') if mode=='github' else ''
+    allow_network=st.checkbox('Allow read-only GitHub API requests for this repository', value=False) if mode=='github' else False
+    if mode=='github':
+        st.caption('Reads the default-branch snapshot only. Set SENTINEL_GITHUB_TOKEN before launch for private repositories; use a fine-grained token restricted to selected repositories with Contents read access. Tokens are never saved by this app. Disable demo mode.')
     approved=st.checkbox('I own or am authorized to audit this folder')
-    if st.button('Start scan',disabled=not approved or (demo and mode=='git_history'),type='primary'):
+    if st.button('Start scan',disabled=not approved or (demo and mode!='files') or (mode=='github' and not allow_network),type='primary'):
         try:
-            st.session_state['scan']=worker.start(str(Path(__file__).parent/'demo') if demo else folder,gitleaks if mode=='files' else False,mode=mode)
+            st.session_state['scan']=worker.start(repository if mode=='github' else str(Path(__file__).parent/'demo') if demo else folder,gitleaks if mode=='files' else False,mode=mode,allow_network=allow_network)
             st.success('Scan started')
         except (ValueError,OSError):
             st.error('Cannot start: verify the folder and platform, or wait for the active scan.')
@@ -45,7 +49,7 @@ def results():
     selected=st.selectbox('Scan history',[x['id'] for x in scans],format_func=lambda sid: next(x['started']+' · '+x['status'] for x in scans if x['id']==sid))
     report=next(x for x in scans if x['id']==selected)
     a,b,c=st.columns(3)
-    a.metric('Blobs scanned' if report.get('mode')=='git_history' else 'Files scanned',report['scanned'])
+    a.metric('Blobs scanned' if report.get('mode') in {'git_history','github'} else 'Files scanned',report['scanned'])
     b.metric('Candidate findings',len(report['findings']))
     c.metric('Status',report['status'].upper())
     st.caption('Scope: '+report['scope'])
@@ -55,6 +59,8 @@ def results():
     if not report['findings']:
         st.write('No findings detected within the completed scan scope. This does not establish that the computer is secure.')
     with st.expander('Coverage and limitations',expanded=True):
+        if report.get('remote'):
+            st.json(report['remote'])
         if report.get('history'):
             st.json(report['history'])
         st.json(report['skipped'])
