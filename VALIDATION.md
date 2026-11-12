@@ -1,17 +1,22 @@
 # Validation results
 
-- Python 3.12 / Linux validation environment.
-- `python -m compileall -q sentinel-ai`: passed.
-- `python -m unittest discover -s tests -v`: 10 tests passed.
-- CLI demo: completed, one file read, two synthetic candidate findings.
-- Streamlit 1.50 AppTest: initial render, authorization checkbox, scan action,
-  resulting metrics and report controls passed without application exceptions.
-- Streamlit emitted a non-failing deprecation warning for use_container_width.
-- No visual browser screenshot review performed.
-- Real macOS, Windows, installed Gitleaks, and vulnerability review NOT tested.
-- Dependency versions captured in requirements-resolved.txt; not a portable
-  hash-verified lockfile. Mac dependency resolution still needs validation.
+## Scan coverage hardening
 
-Tests cover persisted/report redaction, symlink escape prevention, binary and
-size exclusions, HTML escaping, missing Gitleaks failure, Gitleaks evidence
-field filtering, placeholders, interruption recovery, cancellation and HMAC.
+- Python 3.12 / Linux: 18 tests passed, including a real Streamlit 1.50 AppTest.
+- Regression tests exercise nested traversal limits, per-file/global finding
+  limits, bounded skip details, symlink loops, excluded application-state roots,
+  private CLI exports under a permissive umask, and no-overwrite behavior.
+- Existing redaction, persistence, cancellation and recovery checks still pass.
+- Dashboard demo uses isolated temporary state and yields two synthetic findings.
+- GitHub Actions now defines Linux/macOS jobs for Python 3.11 and 3.12.
+  Check the PR Actions results for runner validation; local testing alone does
+  not establish real Mac compatibility.
+- Real installed Gitleaks, macOS privacy permissions, visual browser review,
+  native Windows, dependency vulnerability audit and signing are not validated.
+- Non-failing warnings from Streamlit's test context and its NumPy timedelta
+  conversion occurred during local tests. The deprecated dataframe width
+  argument was replaced.
+
+requirements-resolved.txt records the original Linux environment. It is not
+an independently verified, portable dependency lockfile. CI resolves from
+requirements.txt on each platform.

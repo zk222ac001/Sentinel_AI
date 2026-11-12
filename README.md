@@ -6,7 +6,14 @@ SQLite scan history, cancellation, CLI, local Streamlit UI, and HTML/JSON export
 
 ## Run on macOS
 
-Install Python 3.11 or 3.12, then open Terminal in this extracted folder:
+Install Python 3.11 or 3.12, then clone the repository and open its folder:
+
+```bash
+git clone https://github.com/zk222ac001/Sentinel_AI.git
+cd Sentinel_AI
+```
+
+Create the environment and start the dashboard:
 
 ```bash
 python3 -m venv .venv
@@ -38,7 +45,9 @@ python3 -m sentinel "$HOME/Projects/my-project" --output project-report
 Ctrl+C requests cancellation. Reports are written after cancellation too.
 Existing export files are never silently overwritten. Exit code 2 denotes
 failed, partial, or cancelled coverage; 0 denotes completed selected scope,
-not a security verdict. Review filenames and scope paths before sharing reports.
+not a security verdict. CLI reports are created owner-only (0600) from the
+first write, even with a permissive umask. Browser download permissions are
+controlled by your browser and OS. Review filenames and scope paths before sharing reports.
 
 ## Optional Gitleaks
 
@@ -69,8 +78,11 @@ resolved platform dependencies. This is not a signed or notarized Mac app.
 - Max 1 MiB/file, 10,000 scanned files, 50,000 entries, depth 40, 120 seconds.
   Time limit is checked between entries; a filesystem read or scanner call
   may delay cancellation. Do not use untrusted network filesystems.
-- Any skipped items produce partial status. Skip counts are grouped by reason;
-  per-file skip inventory is not yet implemented.
+- Any skipped items produce partial status. Counts are grouped by reason;
+  up to 500 relative paths and reasons are shown in the dashboard and exports,
+  with a count of additional omitted entries. Directories skipped as a whole
+  count as one entry; their contents are not enumerated. Finding limits also
+  produce partial status, including limits reached inside nested directories.
 - Candidate rules are deliberately small and do not establish validity,
   public exposure, account ownership or paid subscription status.
 - Repeated credentials can yield multiple findings; HMAC fingerprints support
@@ -105,7 +117,10 @@ are created with owner-only permissions. **SQLite is not encrypted.** The MVP
 fingerprint key is a local 0600 file, not OS Keychain; keyring integration is a
 release-hardening task. Raw detected values are not intentionally persisted;
 Python memory cannot guarantee zeroization. Filenames and scope paths remain
-visible and can themselves contain personal information.
+visible and can themselves contain personal information. The state directory
+and its descendants cannot be selected as a scan root. For isolated dashboard
+state, set `SENTINEL_DATA_DIR` before launching Streamlit; CLI users should
+use `--data`. Never expose the dashboard publicly.
 
 State survives restarts. Interrupted scans become partial on startup. Only one
 application process should use a state directory. Stop the app, then manually
@@ -116,12 +131,21 @@ exports separately. Physical secure erasure on SSDs is not guaranteed.
 
 1. Real macOS and Gitleaks compatibility tests; process-level job locking,
    authenticated local sessions, encrypted storage/keyring, bounded subprocess
-   pipes, live filesystem threat hardening and detailed per-file coverage.
+   pipes and live filesystem threat hardening.
 2. Local Git history, authorized GitHub evidence, system checks and guided
    permissions review.
 3. Opt-in AI explanations using redacted structured findings, PDF reports,
    evidence-based relationship graph.
-4. Packaging, signed releases, vulnerability review, CI, broader platforms.
+4. Packaging, signed releases, vulnerability review, broader platforms.
+
+## Automated checks
+
+GitHub Actions runs the core tests and synthetic Streamlit workflow on Linux
+and macOS with Python 3.11 and 3.12 for pushes and pull requests. Actions are
+pinned to commits and receive read-only repository permissions. The dashboard
+test skips itself if Streamlit is not installed locally. Dependabot is configured
+for weekly Python and Actions dependency update pull requests. This is not a
+complete vulnerability assessment; inspect CI results before merging changes.
 
 Implementation intentionally uses Python's standard library for the initial
 engine, CLI and SQLite layer rather than adding Typer/SQLAlchemy/Pydantic

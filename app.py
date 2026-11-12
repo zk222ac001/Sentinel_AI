@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 import streamlit as st
 from sentinel.core import Engine, report_html
 
@@ -10,7 +11,7 @@ st.info('Phase 1: candidate secrets in selected text files. AI, GitHub, billing 
 
 @st.cache_resource
 def engine():
-    return Engine(Path.home()/'.sentinel-ai')
+    return Engine(os.environ.get('SENTINEL_DATA_DIR', str(Path.home()/'.sentinel-ai')))
 
 worker=engine()
 with st.sidebar:
@@ -45,11 +46,15 @@ def results():
     st.caption('Scope: '+report['scope'])
     st.caption('Engine: '+report['engine'])
     st.subheader('Findings')
-    st.dataframe(report['findings'],use_container_width=True)
+    st.dataframe(report['findings'],width='stretch')
     if not report['findings']:
         st.write('No findings detected within the completed scan scope. This does not establish that the computer is secure.')
     with st.expander('Coverage and limitations',expanded=True):
         st.json(report['skipped'])
+        if report.get('skipped_details'):
+            st.dataframe(report['skipped_details'], width='stretch')
+        if report.get('skipped_details_omitted'):
+            st.caption(f"Additional skipped entries omitted: {report['skipped_details_omitted']}")
         for limitation in report['limitations']:
             st.write('• '+limitation)
     if report['status']!='running':

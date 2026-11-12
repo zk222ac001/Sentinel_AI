@@ -3,3 +3,11 @@ __pycache__/
 *.sqlite3
 *.key
 sentinel-report.*
+
+# Local credentials, reports and state
+.env
+.env.*
+*.sqlite3-*
+.sentinel-ai/
+*-report.json
+*-report.html
