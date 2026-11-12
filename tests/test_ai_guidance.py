@@ -124,8 +124,9 @@ class GuidanceUITests(unittest.TestCase):
                 cache_resource.clear()
                 try:
                     app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
-                    app.checkbox[2].check().run()
-                    app.button[0].click().run()
+                    app.radio(key='navigation').set_value('New scan').run()
+                    app.checkbox(key='authorize').check().run()
+                    app.button(key='start_scan').click().run()
                     deadline=time.monotonic()+5
                     while time.monotonic()<deadline:
                         app.run()
