@@ -6,7 +6,9 @@ import os
 import platform
 import streamlit as st
 from sentinel import __version__
-from sentinel.core import Engine
+from sentinel.runtime import open_engine, InstanceInUse
+from sentinel.storage import StorageError
+import sqlite3
 from sentinel.reviews import ReviewStore, STATUSES
 from sentinel import folder_picker
 from sentinel.reporting import export_report, report_html
@@ -30,9 +32,16 @@ h1,h2,h3{letter-spacing:-.035em}h1{font-size:2.8rem!important}
 
 @st.cache_resource
 def engine():
-    return Engine(os.environ.get('SENTINEL_DATA_DIR', str(Path.home()/'.sentinel-ai')))
+    return open_engine(os.environ.get('SENTINEL_DATA_DIR', str(Path.home()/'.sentinel-ai')))
 
-worker = engine()
+try:
+    worker = engine()
+except (InstanceInUse, StorageError) as error:
+    st.error(str(error))
+    st.stop()
+except (OSError, sqlite3.DatabaseError):
+    st.error('Cannot open local audit storage. Check permissions and available disk space. Preserve the data folder before attempting recovery.')
+    st.stop()
 reviews = ReviewStore(worker.db)
 
 def go(page):

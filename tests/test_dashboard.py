@@ -1,3 +1,4 @@
+from sentinel.runtime import close_runtimes
 """Synthetic UI smoke test; skipped when optional UI dependencies are absent."""
 import importlib.util
 import os
@@ -15,7 +16,7 @@ class DashboardTests(unittest.TestCase):
         from streamlit import cache_resource
         with tempfile.TemporaryDirectory() as data:
             with patch.dict(os.environ, {'SENTINEL_DATA_DIR': data}):
-                cache_resource.clear()
+                close_runtimes(); cache_resource.clear()
                 try:
                     app = AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
                     self.assertFalse(app.exception)
@@ -47,14 +48,14 @@ class DashboardTests(unittest.TestCase):
                     self.assertFalse(app.exception)
 
                 finally:
-                    cache_resource.clear()
+                    close_runtimes(); cache_resource.clear()
 
     def test_browse_folder_and_cancel(self):
         from streamlit.testing.v1 import AppTest
         from streamlit import cache_resource
         from sentinel.folder_picker import FolderPickerError
         with tempfile.TemporaryDirectory() as data, patch.dict(os.environ, {'SENTINEL_DATA_DIR': data}):
-            cache_resource.clear()
+            close_runtimes(); cache_resource.clear()
             try:
                 app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
                 app.radio(key='navigation').set_value('New scan').run()
@@ -79,13 +80,13 @@ class DashboardTests(unittest.TestCase):
                 app.selectbox(key='mode').select('github').run()
                 self.assertFalse(any(x.key=='browse_folder' for x in app.button))
             finally:
-                cache_resource.clear()
+                close_runtimes(); cache_resource.clear()
 
     def test_scope_change_clears_stale_error(self):
         from streamlit.testing.v1 import AppTest
         from streamlit import cache_resource
         with tempfile.TemporaryDirectory() as data, patch.dict(os.environ, {'SENTINEL_DATA_DIR': data}):
-            cache_resource.clear()
+            close_runtimes(); cache_resource.clear()
             try:
                 app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
                 app.radio(key='navigation').set_value('New scan').run()
@@ -95,4 +96,19 @@ class DashboardTests(unittest.TestCase):
                 self.assertFalse(app.error)
                 self.assertFalse(app.checkbox(key='authorize').value)
             finally:
-                cache_resource.clear()
+                close_runtimes(); cache_resource.clear()
+
+    def test_duplicate_instance_has_actionable_error(self):
+        from streamlit.testing.v1 import AppTest
+        from streamlit import cache_resource
+        from sentinel.runtime import InstanceLock
+        with tempfile.TemporaryDirectory() as data, patch.dict(os.environ, {'SENTINEL_DATA_DIR':data}):
+            close_runtimes(); cache_resource.clear()
+            try:
+                with InstanceLock(data):
+                    app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
+                    self.assertFalse(app.exception)
+                    self.assertIn('Another Sentinel instance',app.error[0].value)
+                    self.assertFalse((Path(data)/'scans.sqlite3').exists())
+            finally:
+                close_runtimes(); cache_resource.clear()

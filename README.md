@@ -5,6 +5,18 @@ auditing, redacted candidate findings,
 SQLite scan history, cancellation, CLI, local Streamlit UI, and HTML/JSON exports.
 **Optional local AI can select reviewed guidance for findings.** This is an early prototype, not a production security product.
 
+## Production hardening: milestone 1 (v0.4.0)
+
+The dashboard and CLI now prevent simultaneous processes from owning the same
+local data directory. Startup performs transactional schema migration and refuses
+newer/incompatible or corrupt storage. Stop every older app instance and back up
+`.sentinel-ai` before updating. A leftover `instance.lock` file is normal; do not
+delete it. Existing scan history and manual reviews are preserved.
+
+See [release readiness and recovery instructions](RELEASE_READINESS.md) for what
+is implemented and the remaining private-beta/public-release gates. This milestone
+does **not** make the app production-certified or ready for public hosting.
+
 ## Workspace v0.3
 
 - **Overview:** latest audit metrics and recent scan activity; no invented security score.
@@ -57,7 +69,7 @@ py -3 -m venv .venv
 .venv\Scripts\python.exe -m streamlit run app.py --server.address=127.0.0.1 --server.port=8502
 ```
 
-Open http://127.0.0.1:8502. The sidebar should show **Windows · v0.3.1**, with your
+Open http://127.0.0.1:8502. The sidebar should show **Windows · v0.4.0**, with your
 Python version and app folder under Settings. This avoids confusing an older process on
 port 8501 with the new app. No activation script or PowerShell policy change
 is required. These commands use the Windows virtual environment directly.
@@ -356,8 +368,7 @@ exports separately. Physical secure erasure on SSDs is not guaranteed.
 
 ## Next development stages
 
-1. Real macOS and Gitleaks compatibility tests; process-level job locking,
-   authenticated local sessions, encrypted storage/keyring, bounded subprocess
+1. Real macOS and Gitleaks compatibility tests; authenticated local sessions, encrypted storage/keyring, bounded subprocess
    pipes and live filesystem threat hardening.
 2. Broader Git ref selection, GitHub history coverage, system checks and guided
    permissions review.
