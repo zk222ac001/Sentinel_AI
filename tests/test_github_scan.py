@@ -1,3 +1,4 @@
+from sentinel.runtime import close_runtimes
 """Offline API contract fixtures. These tests never contact GitHub."""
 import base64
 import hashlib
@@ -126,7 +127,7 @@ class GitHubTests(unittest.TestCase):
         import time
         with patch.dict(os.environ,{'SENTINEL_DATA_DIR':str(Path(self.temp.name)/'ui-state')}):
             with patch('sentinel.github_scan.GitHubClient.get',side_effect=[self.meta,self.commit,self.tree,self.payload]):
-                cache_resource.clear()
+                close_runtimes(); cache_resource.clear()
                 try:
                     app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
                     app.radio(key='navigation').set_value('New scan').run()
@@ -146,4 +147,4 @@ class GitHubTests(unittest.TestCase):
                     self.assertEqual(app.metric[2].value,'COMPLETED')
                     self.assertEqual(app.metric[1].value,'1')
                 finally:
-                    cache_resource.clear()
+                    close_runtimes(); cache_resource.clear()

@@ -99,3 +99,15 @@ path on cancel/failure, disabled demo browsing, Git-history/GitHub availability,
 no automatic scan, renewed scope authorization and stale-error cleanup.
 Native desktop dialogs are mocked in automated tests. Actual Windows/macOS/Linux
 interactive chooser behavior is not yet verified; manual path entry remains available.
+
+## v0.4.0 runtime/storage hardening
+
+Local Python 3.12: 92 tests executed, 87 passed and 5 Windows-only skipped;
+compileall passed. Added real subprocess tests for competing app/CLI ownership,
+OS lock release after abrupt termination, one-time recovery, separate data folders,
+startup-failure lock release, legacy migrations with retained reviews, future-schema
+refusal, incompatible-schema rollback, corrupt-storage preservation, atomic recovery,
+missing-key refusal and actionable duplicate-instance UI behavior.
+
+These checks do not substitute for real desktop installation/upgrade testing or
+an independent security review. See RELEASE_READINESS.md for remaining gates.

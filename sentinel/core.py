@@ -13,6 +13,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from .storage import migrate, StorageError
 
 RULES = [
     ('github-token', re.compile(r'\bgh[pousr]_[A-Za-z0-9]{30,255}\b'), 'High'),
@@ -61,6 +62,8 @@ class Engine:
         os.chmod(self.data, 0o700)
         # MVP key is permission-protected locally, NOT in an OS keyring.
         keyfile = self.data / 'fingerprint.key'
+        if not keyfile.exists() and (self.data/'scans.sqlite3').exists():
+            raise StorageError('The fingerprint key is missing from existing audit storage. Restore the matching key and database backup; no replacement key was generated.')
         try:
             fd = os.open(keyfile, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0o600)
             with os.fdopen(fd,'wb') as f:
@@ -68,17 +71,24 @@ class Engine:
         except FileExistsError:
             pass
         self.key = keyfile.read_bytes()
+        if len(self.key) != 32:
+            raise StorageError('The local fingerprint key is invalid. Restore the matching key and database backup; it has not been regenerated.')
         self.db = self.data / 'scans.sqlite3'
         fd = os.open(self.db, os.O_CREAT|os.O_RDWR, 0o600)
         os.close(fd)
         self.lock = threading.Lock()
         self.cancel_event = threading.Event()
         self.worker = None
+        migrate(self.db)
         with closing(sqlite3.connect(self.db)) as conn, conn:
-            conn.execute('CREATE TABLE IF NOT EXISTS scans (id TEXT PRIMARY KEY, body TEXT NOT NULL)')
             # A previous process may have ended while scanning.
             for sid, body in conn.execute('SELECT id,body FROM scans').fetchall():
-                report = json.loads(body)
+                try:
+                    report = json.loads(body)
+                    if not isinstance(report, dict) or 'status' not in report or not isinstance(report.get('limitations'), list):
+                        raise ValueError('Invalid scan record')
+                except (ValueError, TypeError) as exc:
+                    raise StorageError('A stored scan record is invalid. Keep a copy of the data folder and restore a known-good backup.') from exc
                 if report['status'] == 'running':
                     report['status'] = 'partial'
                     report['limitations'].append('Previous process interrupted; start a new scan.')

@@ -1,3 +1,4 @@
+from sentinel.runtime import close_runtimes
 import copy
 import io
 import json
@@ -121,7 +122,7 @@ class GuidanceUITests(unittest.TestCase):
         responses=[{'details':{'parameter_size':'3B'}},{'done':True,'message':{'content':json.dumps(output)}}]
         with tempfile.TemporaryDirectory() as data, patch.dict(os.environ,{'SENTINEL_DATA_DIR':data}):
             with patch('sentinel.ai_guidance.local_post',side_effect=responses) as post:
-                cache_resource.clear()
+                close_runtimes(); cache_resource.clear()
                 try:
                     app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
                     app.radio(key='navigation').set_value('New scan').run()
@@ -151,4 +152,4 @@ class GuidanceUITests(unittest.TestCase):
                     self.assertEqual(post.call_count,2)
                     self.assertEqual(app.session_state['ai_job'].result['source'],'local_ai_selected_guidance')
                 finally:
-                    cache_resource.clear()
+                    close_runtimes(); cache_resource.clear()

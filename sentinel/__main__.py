@@ -2,7 +2,10 @@ import argparse
 import json
 import os
 from pathlib import Path
-from .core import Engine, report_html
+from .core import report_html
+from .runtime import open_engine, close_runtimes, InstanceInUse
+from .storage import StorageError
+import sqlite3
 
 
 def main():
@@ -14,7 +17,12 @@ def main():
     parser.add_argument('--mode', choices=['files', 'git_history', 'github'], default='files')
     parser.add_argument('--output',default='sentinel-report',help='Export filename prefix')
     args=parser.parse_args()
-    engine=Engine(args.data)
+    try:
+        engine=open_engine(args.data)
+    except (InstanceInUse, StorageError) as error:
+        parser.error(str(error))
+    except (OSError, sqlite3.DatabaseError):
+        parser.error('Cannot open local audit storage. Check permissions and disk space; preserve the data folder before recovery.')
     try:
         sid=engine.start(args.folder,args.gitleaks,mode=args.mode,allow_network=args.allow_network)
     except (ValueError,OSError):
@@ -35,4 +43,7 @@ def main():
     return 2 if report['status'] in {'failed','partial','cancelled'} else 0
 
 if __name__=='__main__':
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    finally:
+        close_runtimes()
